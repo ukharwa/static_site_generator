@@ -17,7 +17,7 @@ class HTMLNode:
         return output.rstrip()
     
     def __repr__(self):
-        return "tag=" + (self.tag if self.tag else "None") +"\nvalue=" + (self.value if self.value else "None") + "\nchildren=" + (str(self.children) if self.children else "[]") + "\nproperties=" + (str(self.props) if self.props else "{}")
+        return "tag=" + (self.tag if self.tag else "None") +" value=" + (self.value if self.value else "None") + " children=" + (str(self.children) if self.children else "[]") + " properties=" + (str(self.props) if self.props else "{}")
 
 
 class LeafNode(HTMLNode):

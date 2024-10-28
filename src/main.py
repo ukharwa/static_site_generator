@@ -4,7 +4,8 @@ from htmlnode import *
 import re, shutil, os
 
 def main():
-    copy_to_destination(os.getcwd()  + "/static/",os.getcwd()  +  "/public/")
+    copy_to_destination(os.getcwd()  + "/static/", os.getcwd()  +  "/public/")
+    generate_pages_recursive(os.getcwd() + "/content/", os.getcwd()  +  "/public/", "template.html")
 
 def copy_to_destination(src, dest):
     if os.path.exists(dest):
@@ -98,9 +99,12 @@ def split_nodes_image(old_nodes):
 
     return output       
 
-def split_nodes_link(old_nodes):
-    pattern = rf'[^!]\[.*?\]\(.*?\)'
+import re
 
+def split_nodes_link(old_nodes):
+    # Updated pattern to match links, allowing them to appear at the start of the string
+    pattern = r'(?<!!)\[(.*?)\]\((.*?)\)'
+    
     output = []
     for node in old_nodes:
         if node.text_type == "text":
@@ -114,8 +118,9 @@ def split_nodes_link(old_nodes):
                 if last_end < start:
                     output.append(TextNode(text[last_end:start], "text"))
 
-                image = extract_markdown_links(match.group())
-                output.append(TextNode(image[0][0], "link", image[0][1]))
+                link_text = match.group(1)
+                link_url = match.group(2)
+                output.append(TextNode(link_text, "link", link_url))
 
                 last_end = end
 
@@ -176,18 +181,18 @@ def block_to_html_node(block):
     if block_type == "code":
         return ParentNode(block_type, text_to_children(block[block.find("```") + 3: block.rfind("```")]))
     if block_type == "blockquote":
-        return ParentNode(block_type, text_to_children(block[block.find(" ") + 1:]))
+        return blockquote_to_HTMLnode(block)
     if block_type == "ul":
         return ul_to_HTMLnode(block)
     if block_type == "ol":
         return ol_to_HTMLnode(block)
 
 def ul_to_HTMLnode(block):
-    items = block.split("*")
+    items = block.split("\n")
     children = []
     for item in items:
         if item:
-            children.append(LeafNode("li", item.strip()))
+            children.append(ParentNode("li", text_to_children(item.strip()[item.find(" ") + 1:])))
     return ParentNode("ul", children)
 
 def ol_to_HTMLnode(block):
@@ -195,8 +200,15 @@ def ol_to_HTMLnode(block):
     children = []
     for item in items:
         if item:
-            children.append(LeafNode("li", item.strip()[item.find(" ") + 1:]))
+            children.append(ParentNode("li", text_to_children(item.strip()[item.find(" ") + 1:])))
     return ParentNode("ol", children)
+
+def blockquote_to_HTMLnode(block):
+    items = block.split("\n")
+    output = []
+    for item in items:
+        output.append(ParentNode("blockquote", text_to_children(item.strip()[item.find(" ") + 1:])))
+    return ParentNode("p", output)
 
 def markdown_to_html_node(markdown):
     blocks = markdown_to_blocks(markdown)
@@ -204,7 +216,49 @@ def markdown_to_html_node(markdown):
     for block in blocks:
         output_nodes.append(block_to_html_node(block))
     return output_nodes
+
+def extract_title(markdown):
+    blocks = markdown_to_blocks(markdown)
+    for block in blocks:
+        if block_to_block_type(block) == "h1":
+            return block[2:]
+    return Exception        
+
+def generate_page(src, dest, template_path):
+    print("Generating page from " + src + " to " + dest + " using template: " + template_path)
+    markdown_file = open(src, "r")
+    markdown = markdown_file.read(-1)
+    markdown_file.close()
+
+    template_file = open(template_path, "r")
+    template = template_file.read()
+    template_file.close()
+
+    html_string = ""
+    for node in markdown_to_html_node(markdown):
+        html_string += node.to_HTML() + "\r"
+
+    title = extract_title(markdown)
+    template = template.replace("{{ Title }}", title)
+    template = template.replace("{{ Content }}", html_string)
     
+    output_file = open(dest, "w")
+    output_file.write(template)
+    output_file.close()
+
+def generate_pages_recursive(src, dest, template_path):
+    items = os.listdir(src)
+    print(items)
+    if items:
+        for item in items:
+            if item.endswith(".md"):
+                print(item)
+                generate_page(os.path.join(src, item), os.path.join(dest, item.replace(".md", ".html")), template_path)
+            else:
+                os.mkdir(os.path.join(dest, item))
+                generate_pages_recursive(os.path.join(src, item), os.path.join(dest, item), template_path)
+    else:
+        return
 
 if __name__=="__main__":
     main()
